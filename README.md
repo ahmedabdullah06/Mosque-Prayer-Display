@@ -1,4 +1,4 @@
-========================================= Purpose =========================================
+======================== Purpose ========================
 
 This is a webpage made for my local Mosque in Mississauga, Masjid Al-Farooq. 
 Its purpose is to display information regarding daily prayer times, 
@@ -9,7 +9,7 @@ since it was unable to display all the information that the admin wanted to show
 On top of fixing the issue of functionality, it significantly improves the visual aspect of the display, 
 matching the colors and simply organizing the information in a more aesthetically pleasing way.
 
-========================================= Technologies Used =========================================
+======================== Technologies Used ========================
 
 + JavaScript for logic
 + HTML for structuring
