@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Display</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="style2">
+    <link rel="icon" type="image/x-icon" href="Farooq-Logo.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head>
+
+  <body>
+    <div id="main-div">
+      <header id="header" class="flex-container">
+        <div class="flex-item" id="farooq-image"><img src="Farooq-Logo.png" alt="Logo"></div>
+        <div class="flex-item" id="clock"></div>
+        <div class="flex-item" id="solar-date"></div>
+        <div class="flex-item" id="lunar-date"></div>
+
+      </header>
+
+      <main class="flex-container">
+        <table>
+          <tr>
+            <th class="salah" id="salah-title">Salah</th>
+            <th class="adhan" id="adhan-title">Adhan</th>
+            <th class="iqama" id="iqama-title">Iqama</th>
+          </tr>
+
+          <tr data-prayer="fajr">
+            <th class="salah" id="fajr-title">Fajr</th>
+            <th class="adhan" id="fajr-adhan"></th>
+            <th class="iqama" id="fajr-iqama"></th>
+          </tr>
+
+          <tr data-prayer="sunrise">
+            <th class="sunrise" id="sunrise-title">Sunrise</th>
+            <th class="sunrise-time" id="sunrise-time" colspan="2"></th>
+          </tr>
+
+          <tr data-prayer="dhuhr">
+            <th class="salah" id="dhuhr-title">Dhuhr</th>
+            <th class="adhan" id="dhuhr-adhan"></th>
+            <th class="iqama" id="dhuhr-iqama"></th>
+          </tr>
+
+          <tr data-prayer="asr">
+            <th class="salah" id="asr-title">Asr</th>
+            <th class="adhan" id="asr-adhan"></th>
+            <th class="iqama" id="asr-iqama"></th>
+          </tr>
+
+          <tr data-prayer="maghrib">
+            <th class="salah" id="maghrib-title">Maghrib</th>
+            <th class="adhan" id="maghrib-adhan"></th>
+            <th class="iqama" id="maghrib-iqama"></th>
+          </tr>
+
+          <tr data-prayer="isha">
+            <th class="salah" id="isha-title">Isha</th>
+            <th class="adhan" id="isha-adhan"></th>
+            <th class="iqama" id="isha-iqama"></th>
+          </tr>
+        </table>
+
+      <div class="right-column">
+        <section class="countdown-box" id="countdown-box">
+          <p id="next-event-label"></p>
+          <p id="next-event-time"></p>
+          <p id="countdown"></p>
+        </section>
+
+        <section class="jumuah-box">
+          <div class="jumuah-title" id="jumuah-title">Jumu'ah Times</div>
+          <div id="jumuah-times"></div>
+        </section>
+
+      </div>
+    </div>
+    <section class="dua-container">
+      <p id="entry">Dua for entering the Masjid: </p>
+      <section class="dua-text-container">
+      <p id="english-dua">O Allah, open for me the gates of Your mercy</p>
+      <p id="arabic-dua">| اللَّهُمَّ افْتَحْ لِي أَبْوَابَ رَحْمَتِكَ</p>
+      
+      </section>
+    </section>
+    <footer class="flex-container">
+      <p id="spacers"></p>
+      <div id="announcement-bar">
+        <p id="announcement"></p>
+      </div>
+      <p id="spacers"></p>
+    </footer>
+
+  </body>
+</html>
