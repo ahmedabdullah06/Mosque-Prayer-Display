@@ -19,7 +19,7 @@ async function loadAnnouncement() {
 }
 
 async function loadJumuahTimes() {
-  const response = await fetch("jumuah-times.json");
+  const response = await fetch("jumuah-times.json", { cache: "no-store" });
   jumuahData = await response.json();
 }
 
