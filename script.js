@@ -14,8 +14,9 @@ async function loadTimes() {
 }
 
 async function loadAnnouncement() {
-  const response = await fetch("announcement.json");
+  const response = await fetch("announcement.json", { cache: "no-store" });
   announcement = await response.json();
+  displayAnnouncement()
 }
 
 
