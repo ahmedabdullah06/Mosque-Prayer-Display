@@ -18,10 +18,19 @@ async function loadAnnouncement() {
   announcement = await response.json();
 }
 
+
+
 async function loadJumuahTimes() {
-  const response = await fetch("jumuah-times.json", { cache: "no-store" });
-  jumuahData = await response.json();
+  try {
+    const response = await fetch("jumuah-times.json", { cache: "no-store" });
+    jumuahData = await response.json();
+    fillJumuahTable();
+    timetoDate(new Date());
+  } catch (err) {
+    console.error("Keeping old Jumu'ah times:", err);
+  }
 }
+
 
 // ======================= HELPERS =======================
 function timeReformat(time){
@@ -249,6 +258,7 @@ async function init() {
     updateLiveDate();
     setInterval(updateLiveDate, 1000);
     setInterval(checkNewDay, 1000);
+    setInterval(loadJumuahTimes, 5 * 60 * 1000);
 
     console.log("All JSON files loaded successfully");
 
