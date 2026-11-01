@@ -107,15 +107,19 @@ function displayAnnouncement(date = new Date()){
 
 function fillJumuahTable() {
   const container = document.getElementById("jumuah-times");
+  let amOrPm = " PM";
   container.innerHTML = "";
   let i = 0;
 
-  const times = Object.values(jumuahData).map(t => normalizeTime(t, true)).sort()
+  const times = Object.values(jumuahData).sort()
 
   times.forEach((time, index) => {
+    let s = time.split(":");
+    if(parseInt(s[0]) === 11){  amOrPm = " AM"; }
     i++;
     const entry = document.createElement("p");
-    entry.textContent = timeReformat(time) + " PM";
+    entry.textContent = timeReformat(time) + amOrPm;
+    amOrPm = " PM";
     entry.classList.add("jumuah-entry");
     entry.id= "jumuah-" + i;
     container.append(entry);
