@@ -17,3 +17,4 @@ matching the colors and simply organizing the information in a more aestheticall
 + Claude AI for assistance in coding and testing
 
 ======================== Live Demo Link ========================
+https://ahmedabdullah06.github.io/Mosque-Prayer-Display/
