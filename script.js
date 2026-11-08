@@ -1,11 +1,12 @@
 "use strict";
 
 // ======================= STATE =======================
-let data;
-let jumuahData;
-let renderedDay;
+let data;               // prayer-times.json (all times in 24h "HH:MM")
+let jumuahTimes = [];   // sorted 24h "HH:MM" strings, e.g. ["11:50", "12:50", "13:50"]
+let announcement = {};
+let renderedDay;        // key of the real calendar day last rendered
+let displayDate = new Date(); // day whose times are currently shown (tomorrow after Isha)
 let countdownInterval;
-let announcement;
 
 // ======================= LOADING =======================
 async function loadTimes() {
@@ -14,64 +15,101 @@ async function loadTimes() {
 }
 
 async function loadAnnouncement() {
-  const response = await fetch("announcement.json", { cache: "no-store" });
-  announcement = await response.json();
-  displayAnnouncement()
+  try {
+    const response = await fetch("announcement.json", { cache: "no-store" });
+    announcement = await response.json();
+  } catch (err) {
+    console.error("Keeping old announcement:", err);
+  }
+  displayAnnouncement(displayDate);
 }
-
-
 
 async function loadJumuahTimes() {
   try {
     const response = await fetch("jumuah-times.json", { cache: "no-store" });
-    jumuahData = await response.json();
-    fillJumuahTable();
-    timetoDate(new Date());
+    const json = await response.json();
+    const parsed = Object.values(json).map(parseJumuahTime).filter(Boolean).sort();
+    if (parsed.length === 0) throw new Error("No valid Jumu'ah times found");
+    jumuahTimes = parsed;
   } catch (err) {
     console.error("Keeping old Jumu'ah times:", err);
   }
+  fillJumuahTable();
+  timetoDate(new Date());
 }
-
 
 // ======================= HELPERS =======================
-function timeReformat(time){
-  time = normalizeTime(time)
-  let hour = Number(time.charAt(0) + time.charAt(1));
-  if(hour > 12) hour -= 12;
-  return hour + ":" + time[3] + time[4];
+function pad(n) {
+  return String(n).padStart(2, "0");
 }
 
-function normalizeTime(time, pm = false){
+// "HH:MM" (24h) -> "hh:MM AM" / "h:MM PM" (AM times keep the leading zero, e.g. "05:48 AM")
+function to12h(time) {
   let [h, m] = time.split(":").map(Number);
-  if (pm && h < 12) h += 12;           // only for afternoon/evening times
-  return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+  const suffix = h >= 12 ? "PM" : "AM";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return (suffix === "AM" ? pad(h) : h) + ":" + pad(m) + " " + suffix;
 }
 
-function getTodayKey(date = new Date){
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return month + "-" + day;
+// Jumu'ah times are entered by hand, so accept "11:50", "1:50", "13:50", "1:50 PM", etc.
+// Without an AM/PM marker: 10-11 -> morning, 12 -> noon, 1-9 -> afternoon.
+function parseJumuahTime(raw) {
+  const match = String(raw).trim().match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?$/);
+  if (!match) {
+    console.warn("Ignoring invalid Jumu'ah time:", raw);
+    return null;
+  }
+  let h = Number(match[1]);
+  const m = Number(match[2]);
+  const suffix = match[3] ? match[3].toUpperCase() : null;
+
+  if (suffix === "AM" && h === 12) h = 0;
+  else if (suffix === "PM" && h < 12) h += 12;
+  else if (!suffix && h >= 1 && h <= 9) h += 12;
+
+  if (h > 23 || m > 59) {
+    console.warn("Ignoring invalid Jumu'ah time:", raw);
+    return null;
+  }
+  return pad(h) + ":" + pad(m);
+}
+
+function getTodayKey(date = new Date()) {
+  return pad(date.getMonth() + 1) + "-" + pad(date.getDate());
+}
+
+// Day's entry from prayer-times.json; Feb 29 falls back to Feb 28.
+function getDayData(date = new Date()) {
+  const key = getTodayKey(date);
+  if (data[key]) return data[key];
+  if (key === "02-29" && data["02-28"]) return data["02-28"];
+  throw new Error("No prayer times for " + key);
+}
+
+function isFriday(date) {
+  return date.getDay() === 5;
 }
 
 // ======================= PRAYER LOGIC =======================
-function getPrayerTimes(date){
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const today = month + "-" + day;
+function getPrayerTimes(date) {
+  const day = getDayData(date);
   const times = {};
+  const friday = isFriday(date);
 
-  for (const prayer in data[today]){
-    if (prayer == "sunrise") { times["sunrise"] = normalizeTime(data[today][prayer]); } 
-    else {
-      const isPm = prayer != "fajr";
-      for (const occasion in data[today][prayer]){
-        times[prayer + " " + occasion] = normalizeTime(data[today][prayer][occasion], isPm);
+  for (const prayer in day) {
+    if (prayer === "sunrise") {
+      times["sunrise"] = day.sunrise;
+    } else {
+      if (friday && prayer === "dhuhr") continue; // Jumu'ah replaces Dhuhr on Fridays
+      for (const occasion in day[prayer]) {
+        times[prayer + " " + occasion] = day[prayer][occasion];
       }
     }
-  } 
+  }
 
-  if (date.getDay() == 5){
-    Object.values(jumuahData).map(t => normalizeTime(t, true)).sort().forEach((time, i) => {
+  if (friday) {
+    jumuahTimes.forEach((time, i) => {
       times["Jumu'ah " + (i + 1)] = time;
     });
   }
@@ -79,52 +117,33 @@ function getPrayerTimes(date){
 }
 
 // ======================= RENDERING: TABLES =======================
-function fillTable(date = new Date()){
-  const today = getTodayKey(date);
-  document.getElementById('sunrise-time').innerText = data[today]["sunrise"] + " AM";
-  document.getElementById('fajr-adhan').innerText = data[today]["fajr"]["adhan"] + " AM";
-  document.getElementById('fajr-iqama').innerText = data[today]["fajr"]["iqama"] + " AM";
-  document.getElementById('dhuhr-adhan').innerText = timeReformat(data[today]["dhuhr"]["adhan"]) + " PM";
-  document.getElementById('dhuhr-iqama').innerText = timeReformat(data[today]["dhuhr"]["iqama"]) + " PM";
-  document.getElementById('asr-adhan').innerText = timeReformat(data[today]["asr"]["adhan"]) + " PM";
-  document.getElementById('asr-iqama').innerText = timeReformat(data[today]["asr"]["iqama"]) + " PM";
-  document.getElementById('maghrib-adhan').innerText = timeReformat(data[today]["maghrib"]["adhan"]) + " PM";
-  document.getElementById('maghrib-iqama').innerText = timeReformat(data[today]["maghrib"]["iqama"]) + " PM";
-  document.getElementById('isha-adhan').innerText = timeReformat(data[today]["isha"]["adhan"]) + " PM";
-  document.getElementById('isha-iqama').innerText = timeReformat(data[today]["isha"]["iqama"]) + " PM";
+function fillTable(date = new Date()) {
+  const day = getDayData(date);
+  document.getElementById("sunrise-time").innerText = to12h(day.sunrise);
+  for (const prayer of ["fajr", "dhuhr", "asr", "maghrib", "isha"]) {
+    document.getElementById(prayer + "-adhan").innerText = to12h(day[prayer].adhan);
+    document.getElementById(prayer + "-iqama").innerText = to12h(day[prayer].iqama);
+  }
 }
 
-function displayAnnouncement(date = new Date()){
-  const today = getTodayKey(date);
-  let iqama = timeReformat(data[today]["maghrib"]["iqama"]) + " PM";
-  if (!announcement["announcement"] || announcement["announcement"] == ""){
-    document.getElementById('announcement').innerText = "IQAMAH CHANGES: Maghrib at " + timeReformat(data[today]["maghrib"]["iqama"]) + " PM";
-  }
-  else{
-    document.getElementById('announcement').innerText = announcement["announcement"];
-  }
+function displayAnnouncement(date = new Date()) {
+  const text = announcement && announcement.announcement;
+  document.getElementById("announcement").innerText = text && text.trim() !== ""
+    ? text
+    : "IQAMAH CHANGES: Maghrib at " + to12h(getDayData(date).maghrib.iqama);
 }
 
 function fillJumuahTable() {
   const container = document.getElementById("jumuah-times");
-  let amOrPm = " PM";
   container.innerHTML = "";
-  let i = 0;
 
-  const times = Object.values(jumuahData).sort()
-
-  times.forEach((time, index) => {
-    let s = time.split(":");
-    if(parseInt(s[0]) === 11){  amOrPm = " AM"; }
-    i++;
+  jumuahTimes.forEach((time, index) => {
     const entry = document.createElement("p");
-    entry.textContent = timeReformat(time) + amOrPm;
-    amOrPm = " PM";
+    entry.textContent = to12h(time);
     entry.classList.add("jumuah-entry");
-    entry.id= "jumuah-" + i;
+    entry.id = "jumuah-" + (index + 1);
     container.append(entry);
   });
-  document.getElementById("jumuah-title").rowSpan = i;
 }
 
 // ======================= RENDERING: DATE / CLOCK =======================
@@ -142,94 +161,90 @@ function highlightJumuah(id) {
   if (entry) entry.classList.add("next");
 }
 
+const longFormatter = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "long",
+  day: "numeric"
+});
+const hijriFormatter = new Intl.DateTimeFormat("ar-u-ca-islamic-umalqura", {
+  day: "numeric",
+  month: "long",
+  year: "numeric"
+});
+
 function updateLiveDate() {
   const now = new Date();
 
-  const [h, m] = normalizeTime(data[getTodayKey()]["maghrib"]["adhan"], true).split(":").map(Number);
+  // The Islamic day begins at Maghrib.
+  const [h, m] = getDayData(now).maghrib.adhan.split(":").map(Number);
   const maghrib = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
   const hijriDate = new Date(now);
   if (now >= maghrib) hijriDate.setDate(hijriDate.getDate() + 1);
 
-  const longFormatter = new Intl.DateTimeFormat('en-CA', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-  const hijriFormatter = new Intl.DateTimeFormat('ar-u-ca-islamic-umalqura', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
-
-  document.getElementById('clock').innerText = now.toLocaleTimeString();
-  document.getElementById('solar-date').innerText = longFormatter.format(now);
-  document.getElementById('lunar-date').innerText = hijriFormatter.format(hijriDate);
+  document.getElementById("clock").innerText = now.toLocaleTimeString();
+  document.getElementById("solar-date").innerText = longFormatter.format(now);
+  document.getElementById("lunar-date").innerText = hijriFormatter.format(hijriDate);
 }
 
 // ======================= COUNTDOWN =======================
-function timetoDate(date){
-  clearInterval(countdownInterval);
+function findNextEvent(date) {
   const times = Object.entries(getPrayerTimes(date)).sort((a, b) => a[1].localeCompare(b[1]));
-  let targetTime = null;
-  let targetName;
-  let targetClock;
+  const now = Date.now();
 
   for (const [name, time] of times) {
-    const hour = parseInt(time.split(":")[0]);
-    const minutes = parseInt(time.split(":")[1]);
+    const [hour, minutes] = time.split(":").map(Number);
     const candidate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, minutes, 0).getTime();
+    if (candidate > now) return { name, time, target: candidate };
+  }
+  return null;
+}
 
-    if (candidate > Date.now()) {
-      targetTime = candidate;
-      targetClock = time;
-      targetName = name;
-      break;
+function timetoDate(date) {
+  clearInterval(countdownInterval);
+
+  // Today's prayers are all done after Isha iqama -> show tomorrow's schedule.
+  let next = findNextEvent(date);
+  if (next === null) {
+    date = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+    next = findNextEvent(date);
+    if (next === null) {
+      console.error("No upcoming prayer found for", getTodayKey(date));
+      return;
     }
   }
 
-  if (targetTime === null) {
-    const tomorrow = new Date(date);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    fillTable(tomorrow); 
-    timetoDate(tomorrow);
-    displayAnnouncement(tomorrow);
-    return;
-  }
+  displayDate = date;
+  fillTable(date);
+  displayAnnouncement(date);
 
+  const { name: targetName, time: targetClock, target: targetTime } = next;
   const prayer = targetName.split(" ")[0].toLowerCase();
   const isJumuah = prayer === "jumu'ah";
-  const skipDhuhr = date.getDay() === 5 && prayer === "dhuhr";
 
-  highlightRow(isJumuah || skipDhuhr ? null : prayer);
+  highlightRow(isJumuah ? null : prayer);
   highlightJumuah(isJumuah ? "jumuah-" + targetName.split(" ")[1] : null);
 
+  document.getElementById("next-event-label").innerText =
+    targetName.toUpperCase() + " \n " + to12h(targetClock) + " ";
+
   function updateCountdown() {
-    const now = new Date().getTime();
-    const distance = (targetTime - now) + 1000;
+    const distance = (targetTime - Date.now()) + 1000;
 
     if (distance < 1000) {
       clearInterval(countdownInterval);
-      timetoDate(new Date()); 
+      timetoDate(new Date());
       return;
     }
 
-    const disHours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const disHours = Math.floor(distance / (1000 * 60 * 60));
     const disMinutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
     const disSeconds = Math.floor((distance % (1000 * 60)) / 1000);
-    let element = document.getElementById('countdown')
-  
-    document.getElementById('next-event-label').innerText = (
-      targetName.toUpperCase() + 
-      " \n " + 
-      timeReformat(targetClock) + 
-      (Number(targetClock.slice(0, 2)) >= 12 ? " PM" : " AM") + 
-      " "
-    );
+
     const parts = [];
     if (disHours > 0) parts.push(disHours + "h");
     if (disMinutes > 0) parts.push(disMinutes + "min");
     if (disSeconds > 0) parts.push(disSeconds + "sec");
-    element.innerText = parts.join(" ");
+    document.getElementById("countdown").innerText = parts.join(" ");
   }
 
   countdownInterval = setInterval(updateCountdown, 1000);
@@ -241,9 +256,6 @@ function checkNewDay() {
   const today = getTodayKey();
   if (today !== renderedDay) {
     renderedDay = today;
-
-    fillTable();
-    displayAnnouncement();
     timetoDate(new Date());
   }
 }
@@ -252,24 +264,23 @@ function checkNewDay() {
 async function init() {
   try {
     await loadTimes();
-    await loadJumuahTimes();
     await loadAnnouncement();
-    displayAnnouncement()
-    fillTable();
-    fillJumuahTable();
+    await loadJumuahTimes(); // also renders the table and starts the countdown
+
     renderedDay = getTodayKey();
-    timetoDate(new Date());
 
     updateLiveDate();
     setInterval(updateLiveDate, 1000);
     setInterval(checkNewDay, 1000);
-    setInterval(loadJumuahTimes, 5 * 60 * 1000);
+    setInterval(() => {
+      loadJumuahTimes();
+      loadAnnouncement();
+    }, 5 * 60 * 1000);
 
     console.log("All JSON files loaded successfully");
-
-  } 
-  catch (error) { console.error("Initialization failed:", error); }
+  } catch (error) {
+    console.error("Initialization failed:", error);
+  }
 }
 
 init();
-
